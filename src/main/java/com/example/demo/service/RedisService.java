@@ -142,7 +142,7 @@ public class RedisService {
      * 获取在线用户数量（只统计心跳未过期的）
      */
     public Long getOnlineUserCount() {
-        long threshold = System.currentTimeMillis() - 120_000; // 2分钟没心跳视为离线
+        long threshold = System.currentTimeMillis() - 300_000; // 5分钟没心跳视为离线
         Map<Object, Object> entries = redisTemplate.opsForHash().entries(ONLINE_USERS);
         return entries.values().stream()
                 .filter(v -> Long.parseLong(v.toString()) > threshold)
@@ -150,10 +150,10 @@ public class RedisService {
     }
 
     /**
-     * 清理超时用户（超过2分钟没心跳）
+     * 清理超时用户（超过5分钟没心跳）
      */
     public int cleanStaleUsers() {
-        long threshold = System.currentTimeMillis() - 120_000;
+        long threshold = System.currentTimeMillis() - 300_000;
         Map<Object, Object> entries = redisTemplate.opsForHash().entries(ONLINE_USERS);
         int removed = 0;
         for (Map.Entry<Object, Object> entry : entries.entrySet()) {
