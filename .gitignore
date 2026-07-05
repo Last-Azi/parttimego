@@ -31,3 +31,15 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+
+### Environment ###
+*.env
+.env
+docker-compose.override.yml
+
+### Logs ###
+*.log
