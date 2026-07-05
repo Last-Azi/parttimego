@@ -1,0 +1,7 @@
+import request from './request'
+
+export const saveResume = (data) => request.post('/resume', data)
+export const getMyResume = () => request.get('/resume/mine')
+export const getResumeById = (id) => request.get(`/resume/${id}`)
+export const parseResume = (fileUrl, fileName) => request.get('/resume/parse', { params: { fileUrl, fileName } })
+export const parseResumeAsync = (fileUrl, fileName) => request.post('/resume/parse/async', null, { params: { fileUrl, fileName } })
