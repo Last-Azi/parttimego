@@ -378,6 +378,21 @@ const resumeFields = [
   'skills', 'experience', 'projectExperience', 'selfIntro',
   'expectCity', 'expectSalary'
 ]
+const resumeFieldAliases = {
+  realName: ['realName', 'name', '姓名'],
+  gender: ['gender', 'sex', '性别'],
+  school: ['school', 'university', 'college', '学校', '院校'],
+  major: ['major', '专业'],
+  grade: ['grade', '年级'],
+  phone: ['phone', 'mobile', 'tel', 'telephone', '联系电话', '手机号'],
+  email: ['email', 'mail', '邮箱'],
+  skills: ['skills', 'skill', 'technicalSkills', '技能', '专业技能'],
+  experience: ['experience', 'workExperience', 'practiceExperience', '实践经历', '实习经历', '工作经历'],
+  projectExperience: ['projectExperience', 'projects', 'project', '项目经历', '项目经验'],
+  selfIntro: ['selfIntro', 'selfIntroduction', 'summary', '自我介绍', '自我评价'],
+  expectCity: ['expectCity', 'city', '期望城市'],
+  expectSalary: ['expectSalary', 'salary', '期望薪资']
+}
 
 const completionRate = computed(() => {
   let filled = 0
@@ -409,13 +424,37 @@ async function handleSave() {
   ElMessage.success('保存成功')
 }
 
-function mergeParsedResume(parsed) {
-  if (!parsed) return 0
+function normalizeParsedPayload(payload) {
+  let parsed = payload?.data ?? payload
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {
+      return {}
+    }
+  }
+  return parsed && typeof parsed === 'object' ? parsed : {}
+}
+
+function firstParsedValue(parsed, field) {
+  const aliases = resumeFieldAliases[field] || [field]
+  for (const key of aliases) {
+    const value = parsed[key]
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim()
+    }
+  }
+  return ''
+}
+
+function mergeParsedResume(payload) {
+  const parsed = normalizeParsedPayload(payload)
+  console.debug('[resume-parse] parsed payload:', parsed)
   let filled = 0
   resumeFields.forEach(field => {
-    const value = parsed[field]
-    if (value !== undefined && value !== null && String(value).trim() !== '') {
-      form.value[field] = String(value).trim()
+    const value = firstParsedValue(parsed, field)
+    if (value) {
+      form.value[field] = value
       filled++
     }
   })
@@ -445,7 +484,7 @@ async function handleFileChange(e) {
     form.value.attachmentUrl = fileUrl
 
     const parseRes = await parseResume(fileUrl, file.name)
-    const filled = mergeParsedResume(parseRes.data)
+    const filled = mergeParsedResume(parseRes)
     await saveResume(form.value)
 
     if (filled > 0) {

@@ -9,10 +9,12 @@ import com.example.demo.service.ResumeService;
 import com.example.demo.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Slf4j
 @Tag(name = "简历模块")
 @RestController
 @RequestMapping("/resume")
@@ -51,7 +53,10 @@ public class ResumeController {
     @Operation(summary = "同步解析简历文件")
     @GetMapping("/parse")
     public R<Map<String, String>> parse(@RequestParam String fileUrl, @RequestParam String fileName) {
-        return R.ok(resumeParseService.parseResume(fileUrl, fileName));
+        Map<String, String> result = resumeParseService.parseResume(fileUrl, fileName);
+        log.info("Resume parse completed, fileName={}, filledFields={}, keys={}",
+                fileName, result.size(), result.keySet());
+        return R.ok(result);
     }
 
     @Operation(summary = "异步解析简历文件（MQ）")
