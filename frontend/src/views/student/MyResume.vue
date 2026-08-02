@@ -357,7 +357,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getMyResume, parseResume, saveResume } from '../../api/resume'
+import { getMyResume, parseResumeFile, saveResume } from '../../api/resume'
 import { uploadResume } from '../../api/file'
 import { ElMessage } from 'element-plus'
 
@@ -483,7 +483,7 @@ async function handleFileChange(e) {
     }
     form.value.attachmentUrl = fileUrl
 
-    const parseRes = await parseResume(fileUrl, file.name)
+    const parseRes = await parseResumeFile(file)
     const filled = mergeParsedResume(parseRes)
     await saveResume(form.value)
 

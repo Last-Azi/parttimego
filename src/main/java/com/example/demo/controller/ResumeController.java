@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -56,6 +57,15 @@ public class ResumeController {
         Map<String, String> result = resumeParseService.parseResume(fileUrl, fileName);
         log.info("Resume parse completed, fileName={}, filledFields={}, keys={}",
                 fileName, result.size(), result.keySet());
+        return R.ok(result);
+    }
+
+    @Operation(summary = "同步解析上传的简历文件")
+    @PostMapping("/parse/file")
+    public R<Map<String, String>> parseFile(@RequestParam("file") MultipartFile file) {
+        Map<String, String> result = resumeParseService.parseResume(file);
+        log.info("Resume upload parse completed, fileName={}, filledFields={}, keys={}",
+                file.getOriginalFilename(), result.size(), result.keySet());
         return R.ok(result);
     }
 

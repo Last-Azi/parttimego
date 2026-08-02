@@ -11,6 +11,7 @@ import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -37,31 +38,49 @@ public class ResumeParseServiceImpl implements ResumeParseService {
 
     @Override
     public Map<String, String> parseResume(String fileUrl, String fileName) {
-        Map<String, String> result = new HashMap<>();
-        try {
-            String text = extractText(fileUrl, fileName);
-            if (!StringUtils.hasText(text)) {
-                return result;
-            }
-
-            putIfNotBlank(result, "realName", extractName(text));
-            putIfNotBlank(result, "phone", extractPhone(text));
-            putIfNotBlank(result, "email", extractEmail(text));
-            putIfNotBlank(result, "school", extractSchool(text));
-            putIfNotBlank(result, "major", extractMajor(text));
-            putIfNotBlank(result, "grade", extractGrade(text));
-            putIfNotBlank(result, "skills", extractSkills(text));
-            putIfNotBlank(result, "gender", extractGender(text));
-            putIfNotBlank(result, "experience",
-                    extractSection(text, "实践经历", "工作经历", "实习经历", "社会实践"));
-            putIfNotBlank(result, "projectExperience",
-                    extractSection(text, "项目经历", "项目经验", "项目背景", "项目实践"));
-            result.put("parseMode", "rule");
-
-            mergeAiResult(result, text);
+        try (InputStream inputStream = new URL(fileUrl).openStream()) {
+            return parseResumeText(extractText(inputStream, fileName), fileName);
         } catch (Exception e) {
-            log.error("Resume parse failed: {}", e.getMessage());
+            log.error("Resume parse failed from url, fileName={}, error={}", fileName, e.getMessage());
         }
+        return new HashMap<>();
+    }
+
+    @Override
+    public Map<String, String> parseResume(MultipartFile file) {
+        String fileName = file.getOriginalFilename();
+        try (InputStream inputStream = file.getInputStream()) {
+            return parseResumeText(extractText(inputStream, fileName), fileName);
+        } catch (Exception e) {
+            log.error("Resume parse failed from upload, fileName={}, error={}", fileName, e.getMessage());
+        }
+        return new HashMap<>();
+    }
+
+    private Map<String, String> parseResumeText(String text, String fileName) {
+        Map<String, String> result = new HashMap<>();
+        if (!StringUtils.hasText(text)) {
+            log.warn("Resume parse extracted empty text, fileName={}", fileName);
+            return result;
+        }
+
+        log.info("Resume text extracted, fileName={}, chars={}, preview={}",
+                fileName, text.length(), text.substring(0, Math.min(text.length(), 300)));
+        putIfNotBlank(result, "realName", extractName(text));
+        putIfNotBlank(result, "phone", extractPhone(text));
+        putIfNotBlank(result, "email", extractEmail(text));
+        putIfNotBlank(result, "school", extractSchool(text));
+        putIfNotBlank(result, "major", extractMajor(text));
+        putIfNotBlank(result, "grade", extractGrade(text));
+        putIfNotBlank(result, "skills", extractSkills(text));
+        putIfNotBlank(result, "gender", extractGender(text));
+        putIfNotBlank(result, "experience",
+                extractSection(text, "实践经历", "工作经历", "实习经历", "社会实践"));
+        putIfNotBlank(result, "projectExperience",
+                extractSection(text, "项目经历", "项目经验", "项目背景", "项目实践"));
+        result.put("parseMode", "rule");
+
+        mergeAiResult(result, text);
         return result;
     }
 
@@ -79,22 +98,18 @@ public class ResumeParseServiceImpl implements ResumeParseService {
         }
     }
 
-    private String extractText(String fileUrl, String fileName) throws Exception {
-        String lowerFileName = fileName.toLowerCase();
-        try (InputStream inputStream = new URL(fileUrl).openStream()) {
-            if (lowerFileName.endsWith(".pdf")) {
-                byte[] bytes = readAllBytes(inputStream);
-                try (PDDocument document = Loader.loadPDF(bytes)) {
-                    String text = new PDFTextStripper().getText(document);
-                    log.info("PDF resume text preview: {}", text.substring(0, Math.min(text.length(), 300)));
-                    return text;
-                }
+    private String extractText(InputStream inputStream, String fileName) throws Exception {
+        String lowerFileName = fileName == null ? "" : fileName.toLowerCase();
+        if (lowerFileName.endsWith(".pdf")) {
+            byte[] bytes = readAllBytes(inputStream);
+            try (PDDocument document = Loader.loadPDF(bytes)) {
+                return new PDFTextStripper().getText(document);
             }
-            if (lowerFileName.endsWith(".docx")) {
-                try (XWPFDocument document = new XWPFDocument(inputStream);
-                     XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
-                    return extractor.getText();
-                }
+        }
+        if (lowerFileName.endsWith(".docx")) {
+            try (XWPFDocument document = new XWPFDocument(inputStream);
+                 XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
+                return extractor.getText();
             }
         }
         return null;
