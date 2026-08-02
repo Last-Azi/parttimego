@@ -217,17 +217,17 @@
                 </svg>
                 简历附件
               </h2>
-              <span class="card-tip">上传简历附件，支持 PDF、DOC、DOCX 格式</span>
+              <span class="card-tip">上传简历附件，支持 PDF、DOCX 格式</span>
             </div>
             <div class="upload-area" @click="triggerUpload" @dragover.prevent @drop.prevent="handleDrop">
-              <input ref="fileInput" type="file" accept=".pdf,.doc,.docx" style="display: none" @change="handleFileChange">
+              <input ref="fileInput" type="file" accept=".pdf,.docx" style="display: none" @change="handleFileChange">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="17 8 12 3 7 8"/>
                 <line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
               <p>点击或拖拽文件到此处上传</p>
-              <span>支持 PDF、DOC、DOCX 格式，最大 10MB</span>
+              <span>支持 PDF、DOCX 格式，最大 10MB</span>
             </div>
             <div v-if="form.attachmentUrl" class="file-info">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2">
@@ -357,7 +357,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getMyResume, saveResume } from '../../api/resume'
+import { getMyResume, parseResume, saveResume } from '../../api/resume'
+import { uploadResume } from '../../api/file'
 import { ElMessage } from 'element-plus'
 
 const form = ref({
@@ -371,6 +372,12 @@ const uploadLoading = ref(false)
 const fileInput = ref(null)
 
 const cities = ['北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '南京', '重庆', '西安']
+const supportedResumePattern = /\.(pdf|docx)$/i
+const resumeFields = [
+  'realName', 'gender', 'school', 'major', 'grade', 'phone', 'email',
+  'skills', 'experience', 'projectExperience', 'selfIntro',
+  'expectCity', 'expectSalary'
+]
 
 const completionRate = computed(() => {
   let filled = 0
@@ -402,19 +409,56 @@ async function handleSave() {
   ElMessage.success('保存成功')
 }
 
-function handleFileChange(e) {
+function mergeParsedResume(parsed) {
+  if (!parsed) return 0
+  let filled = 0
+  resumeFields.forEach(field => {
+    const value = parsed[field]
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      form.value[field] = String(value).trim()
+      filled++
+    }
+  })
+  return filled
+}
+
+async function handleFileChange(e) {
   const file = e.target.files[0]
   if (!file) return
+  if (!supportedResumePattern.test(file.name)) {
+    ElMessage.error('解析回填暂支持 PDF、DOCX 格式')
+    if (fileInput.value) fileInput.value.value = ''
+    return
+  }
   if (file.size > 10 * 1024 * 1024) {
     ElMessage.error('文件大小超出限制')
+    if (fileInput.value) fileInput.value.value = ''
     return
   }
   uploadLoading.value = true
-  setTimeout(() => {
-    form.value.attachmentUrl = URL.createObjectURL(file)
+  try {
+    const uploadRes = await uploadResume(file)
+    const fileUrl = uploadRes.data
+    if (!fileUrl) {
+      throw new Error('简历上传失败：未返回文件地址')
+    }
+    form.value.attachmentUrl = fileUrl
+
+    const parseRes = await parseResume(fileUrl, file.name)
+    const filled = mergeParsedResume(parseRes.data)
+    await saveResume(form.value)
+
+    if (filled > 0) {
+      ElMessage.success('简历上传并解析成功')
+    } else {
+      ElMessage.warning('简历上传成功，但未识别到可回填的信息')
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '简历上传或解析失败')
+  } finally {
     uploadLoading.value = false
-    ElMessage.success('简历上传成功')
-  }, 2000)
+    if (fileInput.value) fileInput.value.value = ''
+  }
 }
 
 function handleDrop(e) {
