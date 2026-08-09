@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # MySQL 服务
+  mysql:
+    image: mysql:8.0
+    container_name: parttimego-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: parttimego
+      MYSQL_CHARSET: utf8mb4
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --init-connect='SET NAMES utf8mb4'
+    networks:
+      - parttimego-net
+    restart: unless-stopped
+
+  # Redis 服务
+  redis:
+    image: redis:7-alpine
+    container_name: parttimego-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - parttimego-net
+    restart: unless-stopped
+
+  # RabbitMQ 服务
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: parttimego-rabbitmq
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - parttimego-net
+    restart: unless-stopped
+
+  # 后端服务
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: parttimego-backend
+    ports:
+      - "9090:8088"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/parttimego?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 1234
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      OSS_ENDPOINT: oss-cn-beijing.aliyuncs.com
+      OSS_BUCKET: java-ai-ffz01
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - parttimego-net
+    restart: unless-stopped
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: parttimego-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - parttimego-net
+    restart: unless-stopped
+
+# 数据卷
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+
+# 网络
+networks:
+  parttimego-net:
+    driver: bridge
